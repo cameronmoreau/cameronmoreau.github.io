@@ -1,9 +1,9 @@
 body {
   font-family: 'Poppins', sans-serif;
   color: #413E3F;
-  max-width: 680px;
+  max-width: 720px;
   margin: 0 auto;
-  padding: 32px;
+  padding: 24px;
 }
 
 h1 {
@@ -26,16 +26,17 @@ hr {
 #header #header-links {
   display: flex;
   justify-content: center;
+  flex-wrap: wrap;
   margin: 32px 0;
 }
 
 #header #header-links a {
-  margin: 0 8px;
+  margin: 8px;
   cursor: pointer;
 }
 
 #talks {
-  padding-top: 32px;
+  margin-top: 32px;
 }
 
 a, a:visited, a:active {

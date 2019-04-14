@@ -56,20 +56,38 @@ a:hover {
 }
 
 .main-link {
-  border: 3px solid #413E3F;
+  position: relative;
+  border: 2px solid #413E3F;
+  border-bottom-width: 4px;
   color: #413E3F;
-  padding: 8px;
+  padding: 8px 12px;
   text-decoration: none;
   font-weight: bold;
+  transition: color 0.08s ease-in;
+}
+
+.main-link:hover {
+  color: #fff;
+}
+
+.main-link:before {
+  content: "";
+  position: absolute;
+  background: #413E3F;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: -1;
+  transition: top 0.09s ease-in;
+}
+
+.main-link:hover:before {
+  top: 0;
 }
 
 .main-link i {
   margin-right: 8px;
-}
-
-.main-link:hover {
-  background: #413E3F;
-  color: #FFF;
 }
 
 .talk {

@@ -1,0 +1,80 @@
+body {
+  font-family: 'Poppins', sans-serif;
+  color: #413E3F;
+  max-width: 648px;
+  margin: 0 auto;
+  padding: 32px;
+}
+
+h1 {
+  font-size: 32px;
+}
+
+hr {
+  border-color: #413E3F;
+  border-width: 0.5px;
+}
+
+#header {
+  text-align: center;
+}
+
+#header p {
+  line-height: 32px;
+}
+
+#header #header-links {
+  display: flex;
+  justify-content: center;
+  margin: 32px 0;
+}
+
+#header #header-links a {
+  margin: 0 8px;
+  cursor: pointer;
+}
+
+#talks {
+  padding-top: 32px;
+}
+
+a, a:visited, a:active {
+  color: #413E3F;
+  text-decoration: none;
+  border-bottom: 2px #413E3F dotted;
+  cursor: help;
+}
+
+a:hover {
+  border-bottom: 2px #413E3F solid;
+}
+
+.profile-picture {
+  width: 180px;
+  border-radius: 50%;
+}
+
+.main-link {
+  border: 3px solid #413E3F;
+  color: #413E3F;
+  padding: 8px;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.main-link i {
+  margin-right: 8px;
+}
+
+.main-link:hover {
+  background: #413E3F;
+  color: #FFF;
+}
+
+.talk {
+  margin-bottom: 24px;
+}
+
+.talk .title {
+  font-weight: bold;
+}

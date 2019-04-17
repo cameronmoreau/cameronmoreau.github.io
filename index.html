@@ -13,6 +13,23 @@
     window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
     ga('create', 'UA-57942641-1', 'auto');
     ga('send', 'pageview');
+
+    const captureOutboundLink = function(url) {
+      ga('send', 'event', 'outbound', 'click', url, {
+        'transport': 'beacon'
+      });
+      return false;
+    }
+
+    window.onload = function() {
+      const links = document.getElementsByTagName("a");
+      for (let elm of links) {
+        const href = elm.getAttribute('href');
+        if (href.startsWith('http') || href.startsWith('mailto:')) {
+          elm.addEventListener('click', captureOutboundLink.bind(null, href), false);
+        }
+      }
+    }
   </script>
   <script async src='https://www.google-analytics.com/analytics.js'></script>
   <!-- End Google Analytics -->

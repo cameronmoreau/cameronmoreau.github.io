@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Charging Estimator</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        .full-charge-row {
+            background-color: rgba(40, 167, 69, 0.15);
+            font-weight: bold;
+            border-left: 5px solid #28a745;
+        }
+        #customRateGroup {
+            display: none;
+        }
+        /* Mobile tweak for table text */
+        td, th {
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<main class="container">
+    <article>
+        <header>
+            <hgroup>
+                <h1>EV SoC Calculator</h1>
+                <p>Estimate charging time</p>
+            </hgroup>
+        </header>
+
+        <form id="chargeForm">
+            <div class="grid">
+                <div>
+                    <label for="vehicleSelect">Vehicle Model</label>
+                    <select id="vehicleSelect">
+                        <option value="R1T" selected>R1T Large (130 kWh / 330 mi)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="currentSoc">Current Charge (%)</label>
+                    <input type="number" id="currentSoc" placeholder="0" min="0" max="100">
+                </div>
+            </div>
+
+            <div class="grid">
+                <div>
+                    <label for="chargeRateSelect">Charge Rate</label>
+                    <select id="chargeRateSelect" onchange="toggleCustomRate()">
+                        <option value="1.2">1.2 kW (Level 1)</option>
+                        <option value="7.2">7.2 kW (40A Circuit / 32A Draw)</option>
+                        <option value="9.6" selected>9.6 kW (50A Circuit / 40A Draw)</option>
+                        <option value="11.5">11.5 kW (60A Circuit / 48A Draw)</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                </div>
+
+                <div id="customRateGroup">
+                    <label for="customRateInput">Enter Custom Rate (kW)</label>
+                    <input type="number" id="customRateInput" step="0.1" placeholder="e.g. 150">
+                </div>
+            </div>
+
+            <button type="button" onclick="calculateCharge()">Calculate Estimation</button>
+        </form>
+
+        <footer>
+            <table role="grid" id="resultTable">
+                <thead>
+                    <tr>
+                        <th scope="col">Time</th>
+                        <th scope="col">Level</th>
+                        <th scope="col">Energy</th>
+                        <th scope="col">Range</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--pico-muted-color);">
+                            Adjust settings and click Calculate.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </footer>
+    </article>
+</main>
+
+<script>
+    const vehicleData = {
+        "R1T": { capacity: 130, range: 330 }
+    };
+
+    function toggleCustomRate() {
+        const select = document.getElementById('chargeRateSelect');
+        const customGroup = document.getElementById('customRateGroup');
+        
+        if (select.value === 'custom') {
+            customGroup.style.display = 'block';
+            document.getElementById('customRateInput').focus();
+        } else {
+            customGroup.style.display = 'none';
+        }
+    }
+
+    function formatTime(dateObj) {
+        // Formats time as "11:28 PM"
+        return dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function calculateCharge() {
+        const vehicleKey = document.getElementById('vehicleSelect').value;
+        const capacity = vehicleData[vehicleKey].capacity;
+        const maxRange = vehicleData[vehicleKey].range;
+        
+        let startSoc = parseFloat(document.getElementById('currentSoc').value);
+        if (isNaN(startSoc)) startSoc = 0;
+        if (startSoc > 100) startSoc = 100;
+
+        const rateSelect = document.getElementById('chargeRateSelect').value;
+        let chargeRate = 0;
+
+        if (rateSelect === 'custom') {
+            chargeRate = parseFloat(document.getElementById('customRateInput').value);
+        } else {
+            chargeRate = parseFloat(rateSelect);
+        }
+
+        if (isNaN(chargeRate) || chargeRate <= 0) {
+            alert("Please enter a valid charge rate.");
+            return;
+        }
+
+        let currentKwh = (startSoc / 100) * capacity;
+        const tbody = document.querySelector('#resultTable tbody');
+        tbody.innerHTML = ''; 
+
+        // Initialize Time
+        let timeTracker = new Date(); 
+
+        // Loop max 24 hours
+        for (let hour = 1; hour <= 24; hour++) {
+            // Increment logic
+            currentKwh += chargeRate;
+            timeTracker.setHours(timeTracker.getHours() + 1);
+
+            let isFull = false;
+
+            // Cap at 100%
+            if (currentKwh >= capacity) {
+                currentKwh = capacity;
+                isFull = true;
+            }
+
+            const percentage = (currentKwh / capacity) * 100;
+            const currentRange = (currentKwh / capacity) * maxRange;
+
+            // Row Styling
+            const rowClass = isFull ? 'class="full-charge-row"' : '';
+            const statusIcon = isFull ? '🔋' : '⚡';
+            
+            // Format time string
+            const timeString = `+${hour} hr <br><small>(${formatTime(timeTracker)})</small>`;
+
+            const row = `
+                <tr ${rowClass}>
+                    <th scope="row">${timeString}</th>
+                    <td>${statusIcon} ${percentage.toFixed(1)}%</td>
+                    <td>${currentKwh.toFixed(1)} kWh</td>
+                    <td>${Math.round(currentRange)} mi</td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+
+            // BREAK LOOP if full
+            if (isFull) {
+                break;
+            }
+        }
+    }
+</script>
+
+</body>
+</html>

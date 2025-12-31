@@ -18,6 +18,27 @@
         td, th {
             font-size: 0.9rem;
         }
+        .time-header {
+            font-size: 0.8rem;
+            color: var(--pico-muted-color);
+            font-weight: normal;
+        }
+        
+        /* --- NEW: Remove padding for the table in the footer --- */
+        article > footer {
+            padding: 0; 
+            overflow: hidden; /* Ensures table doesn't spill out of rounded corners */
+        }
+        article > footer > table {
+            margin-bottom: 0; /* Removes gap at the bottom */
+            width: 100%;
+        }
+        /* Optional: Add a tiny bit of padding to cells so text isn't crushed, 
+           but keep the table itself flush with the edges */
+        article > footer > table th, 
+        article > footer > table td {
+            padding: 0.75rem; 
+        }
     </style>
 </head>
 <body>
@@ -26,8 +47,8 @@
     <article>
         <header>
             <hgroup>
-                <h1>EV SoC Calculator</h1>
-                <p>Estimate charging time</p>
+                <h1>EV Charging Estimator</h1>
+                <p>Estimate charging time for your Rivian R1T</p>
             </hgroup>
         </header>
 
@@ -52,8 +73,8 @@
                     <select id="chargeRateSelect" onchange="toggleCustomRate()">
                         <option value="1.2">1.2 kW (Level 1)</option>
                         <option value="7.2">7.2 kW (40A Circuit / 32A Draw)</option>
-                        <option value="9.6" selected>9.6 kW (50A Circuit / 40A Draw)</option>
-                        <option value="11.5">11.5 kW (60A Circuit / 48A Draw)</option>
+                        <option value="9.6">9.6 kW (50A Circuit / 40A Draw)</option>
+                        <option value="11.5" selected>11.5 kW (60A Circuit / 48A Draw)</option>
                         <option value="custom">Custom...</option>
                     </select>
                 </div>
@@ -64,14 +85,14 @@
                 </div>
             </div>
 
-            <button type="button" onclick="calculateCharge()">Calculate Estimation</button>
+            <button type="button" onclick="handleManualCalculate()">Calculate Estimation</button>
         </form>
 
         <footer>
             <table role="grid" id="resultTable">
                 <thead>
                     <tr>
-                        <th scope="col">Time</th>
+                        <th scope="col">Time <span id="startTimeLabel" class="time-header"></span></th>
                         <th scope="col">Level</th>
                         <th scope="col">Energy</th>
                         <th scope="col">Range</th>
@@ -94,24 +115,69 @@
         "R1T": { capacity: 130, range: 330 }
     };
 
+    // 1. Run on Page Load
+    document.addEventListener('DOMContentLoaded', () => {
+        loadState();
+    });
+
     function toggleCustomRate() {
         const select = document.getElementById('chargeRateSelect');
         const customGroup = document.getElementById('customRateGroup');
         
         if (select.value === 'custom') {
             customGroup.style.display = 'block';
-            document.getElementById('customRateInput').focus();
+            if (document.activeElement === select) {
+                document.getElementById('customRateInput').focus();
+            }
         } else {
             customGroup.style.display = 'none';
         }
     }
 
     function formatTime(dateObj) {
-        // Formats time as "11:28 PM"
         return dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     }
 
-    function calculateCharge() {
+    // 2. Handle Manual Click (Resets the timer to NOW)
+    function handleManualCalculate() {
+        const now = new Date(); // Capture new start time
+        calculateCharge(now, true); // Run calculation and save
+    }
+
+    // 3. Save State (Includes Timestamp)
+    function saveState(timestamp) {
+        const state = {
+            currentSoc: document.getElementById('currentSoc').value,
+            chargeRateSelect: document.getElementById('chargeRateSelect').value,
+            customRateInput: document.getElementById('customRateInput').value,
+            generatedAt: timestamp.toISOString() // Persist the time
+        };
+        sessionStorage.setItem('evCalcSession', JSON.stringify(state));
+    }
+
+    // 4. Load State (Restores Timestamp)
+    function loadState() {
+        const saved = sessionStorage.getItem('evCalcSession');
+        if (saved) {
+            const state = JSON.parse(saved);
+            
+            if (state.currentSoc) document.getElementById('currentSoc').value = state.currentSoc;
+            if (state.chargeRateSelect) document.getElementById('chargeRateSelect').value = state.chargeRateSelect;
+            if (state.customRateInput) document.getElementById('customRateInput').value = state.customRateInput;
+
+            toggleCustomRate();
+
+            // Restore the original calculation time if it exists
+            if (state.generatedAt) {
+                const originalTime = new Date(state.generatedAt);
+                calculateCharge(originalTime, false); // Don't re-save, just render
+            }
+        }
+    }
+
+    // 5. Main Logic
+    function calculateCharge(startTime, shouldSave) {
+        // Inputs
         const vehicleKey = document.getElementById('vehicleSelect').value;
         const capacity = vehicleData[vehicleKey].capacity;
         const maxRange = vehicleData[vehicleKey].range;
@@ -130,26 +196,32 @@
         }
 
         if (isNaN(chargeRate) || chargeRate <= 0) {
-            alert("Please enter a valid charge rate.");
+            if (shouldSave) alert("Please enter a valid charge rate.");
             return;
         }
 
+        // Save immediately if manual trigger
+        if (shouldSave) {
+            saveState(startTime);
+        }
+
+        // Update Header to show start time context
+        document.getElementById('startTimeLabel').textContent = `(Start: ${formatTime(startTime)})`;
+
+        // Clear Table
         let currentKwh = (startSoc / 100) * capacity;
         const tbody = document.querySelector('#resultTable tbody');
         tbody.innerHTML = ''; 
 
-        // Initialize Time
-        let timeTracker = new Date(); 
+        // Clone start time so we don't mutate the original reference
+        let timeTracker = new Date(startTime.getTime()); 
 
-        // Loop max 24 hours
         for (let hour = 1; hour <= 24; hour++) {
-            // Increment logic
             currentKwh += chargeRate;
             timeTracker.setHours(timeTracker.getHours() + 1);
 
             let isFull = false;
 
-            // Cap at 100%
             if (currentKwh >= capacity) {
                 currentKwh = capacity;
                 isFull = true;
@@ -158,11 +230,9 @@
             const percentage = (currentKwh / capacity) * 100;
             const currentRange = (currentKwh / capacity) * maxRange;
 
-            // Row Styling
             const rowClass = isFull ? 'class="full-charge-row"' : '';
             const statusIcon = isFull ? '🔋' : '⚡';
             
-            // Format time string
             const timeString = `+${hour} hr <br><small>(${formatTime(timeTracker)})</small>`;
 
             const row = `
@@ -175,10 +245,7 @@
             `;
             tbody.innerHTML += row;
 
-            // BREAK LOOP if full
-            if (isFull) {
-                break;
-            }
+            if (isFull) break;
         }
     }
 </script>

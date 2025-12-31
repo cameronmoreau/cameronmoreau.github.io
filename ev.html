@@ -43,8 +43,8 @@
       <article>
         <header>
           <hgroup>
-            <h1>EV Charging Estimator</h1>
-            <p>Estimate charging time for your Rivian R1T</p>
+            <h1>EV SoC Calculator</h1>
+            <p>Estimate your EV's State of Charge over time</p>
           </hgroup>
         </header>
 
@@ -52,11 +52,7 @@
           <div class="grid">
             <div>
               <label for="vehicleSelect">Vehicle Model</label>
-              <select id="vehicleSelect">
-                <option value="R1T" selected>
-                  R1T Large (130 kWh / 330 mi)
-                </option>
-              </select>
+              <select id="vehicleSelect"></select>
             </div>
 
             <div>
@@ -76,11 +72,9 @@
               <label for="chargeRateSelect">Charge Rate</label>
               <select id="chargeRateSelect" onchange="toggleCustomRate()">
                 <option value="1.2">1.2 kW (Level 1)</option>
-                <option value="7.2">7.2 kW (40A Circuit / 32A Draw)</option>
-                <option value="9.6">9.6 kW (50A Circuit / 40A Draw)</option>
-                <option value="11.5" selected>
-                  11.5 kW (60A Circuit / 48A Draw)
-                </option>
+                <option value="7.2">7.2 kW (Level 2 / 40A)</option>
+                <option value="9.6" selected>9.6 kW (Level 2 / 50A)</option>
+                <option value="11.5">11.5 kW (Level 2 / 60A)</option>
                 <option value="custom">Custom...</option>
               </select>
             </div>
@@ -147,12 +141,31 @@
     </main>
 
     <script>
+      // Vehicle definitions - add new vehicles here
       const vehicleData = {
-        R1T: { capacity: 130, range: 330 },
+        R1T: { name: "Rivian R1T Large", capacity: 130, range: 330 },
+        LucidAirTouring: {
+          name: "Lucid Air Touring",
+          capacity: 92,
+          range: 418,
+        },
       };
+
+      function populateVehicleSelect(selectedKey) {
+        const select = document.getElementById("vehicleSelect");
+        select.innerHTML = "";
+        for (const [key, vehicle] of Object.entries(vehicleData)) {
+          const option = document.createElement("option");
+          option.value = key;
+          option.textContent = `${vehicle.name} (${vehicle.capacity} kWh / ${vehicle.range} mi)`;
+          if (key === selectedKey) option.selected = true;
+          select.appendChild(option);
+        }
+      }
 
       // 1. Run on Page Load
       document.addEventListener("DOMContentLoaded", () => {
+        populateVehicleSelect(Object.keys(vehicleData)[0]); // Default to first vehicle
         loadState();
       });
 
@@ -203,6 +216,7 @@
       // 3. Save State (Includes Timestamp)
       function saveState(timestamp) {
         const state = {
+          vehicleSelect: document.getElementById("vehicleSelect").value,
           currentSoc: document.getElementById("currentSoc").value,
           chargeRateSelect: document.getElementById("chargeRateSelect").value,
           customRateInput: document.getElementById("customRateInput").value,
@@ -219,6 +233,10 @@
         if (saved) {
           const state = JSON.parse(saved);
 
+          if (state.vehicleSelect && vehicleData[state.vehicleSelect]) {
+            document.getElementById("vehicleSelect").value =
+              state.vehicleSelect;
+          }
           if (state.currentSoc)
             document.getElementById("currentSoc").value = state.currentSoc;
           if (state.chargeRateSelect)
@@ -313,12 +331,26 @@
         const tbody = document.querySelector("#resultTable tbody");
         tbody.innerHTML = "";
 
+        // Determine time increment based on charge rate
+        let incrementMinutes;
+        if (chargeRate < 2) {
+          incrementMinutes = 60; // 1 hour
+        } else if (chargeRate < 50) {
+          incrementMinutes = 30; // 30 minutes
+        } else {
+          incrementMinutes = 15; // 15 minutes
+        }
+
+        const incrementHours = incrementMinutes / 60;
+        const energyPerIncrement = chargeRate * incrementHours;
+        const maxIterations = 24;
+
         // Clone start time so we don't mutate the original reference
         let timeTracker = new Date(startTime.getTime());
 
-        for (let hour = 1; hour <= 24; hour++) {
-          currentKwh += chargeRate;
-          timeTracker.setHours(timeTracker.getHours() + 1);
+        for (let i = 1; i <= maxIterations; i++) {
+          currentKwh += energyPerIncrement;
+          timeTracker.setMinutes(timeTracker.getMinutes() + incrementMinutes);
 
           let isFull = false;
 
@@ -335,7 +367,20 @@
           const rowClass = isFull ? 'class="full-charge-row"' : "";
           const statusIcon = isFull ? "🔋" : "⚡";
 
-          const timeString = `+${hour} hr <br><small>(${formatTime(
+          // Format time string based on increment
+          const totalMinutes = i * incrementMinutes;
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          let timeLabel;
+          if (minutes === 0) {
+            timeLabel = `+${hours} hr`;
+          } else if (hours === 0) {
+            timeLabel = `+${minutes} min`;
+          } else {
+            timeLabel = `+${hours}:${String(minutes).padStart(2, "0")}`;
+          }
+
+          const timeString = `${timeLabel} <br><small>(${formatTime(
             timeTracker
           )})</small>`;
 
